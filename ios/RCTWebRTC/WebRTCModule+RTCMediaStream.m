@@ -77,39 +77,42 @@ RCT_EXPORT_METHOD(getUserMedia:(NSDictionary *)constraints
   // added to 1 RTCPeerConnection instance. As suggested by
   // https://www.w3.org/TR/mediacapture-streams/#mediastream to be a good
   // practice, use a UUID (conforming to RFC4122).
-  NSString *mediaStreamId = [[NSUUID UUID] UUIDString];
-  RTCMediaStream *mediaStream
-    = [self.peerConnectionFactory mediaStreamWithStreamId:mediaStreamId];
-
-  [self
-    getUserMedia:constraints
-    successCallback:^ (RTCMediaStream *mediaStream) {
-      NSString *mediaStreamId = mediaStream.streamId;
-      NSMutableArray *tracks = [NSMutableArray array];
-
-      for (NSString *propertyName in @[ @"audioTracks", @"videoTracks" ]) {
-        SEL sel = NSSelectorFromString(propertyName);
-        for (RTCMediaStreamTrack *track in [mediaStream performSelector:sel]) {
-          NSString *trackId = track.trackId;
-
-          self.localTracks[trackId] = track;
-          [tracks addObject:@{
-                              @"enabled": @(track.isEnabled),
-                              @"id": trackId,
-                              @"kind": track.kind,
-                              @"label": trackId,
-                              @"readyState": @"live",
-                              @"remote": @(NO)
-                              }];
-        }
-      }
-      self.localStreams[mediaStreamId] = mediaStream;
-      resolve(@[ mediaStreamId, tracks ]);
-    }
-    errorCallback:^ (NSString *errorType, NSString *errorMessage) {
-      reject(errorType, errorMessage, nil);
-    }
-    mediaStream:mediaStream];
+  
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^ {
+        NSString *mediaStreamId = [[NSUUID UUID] UUIDString];
+        RTCMediaStream *mediaStream
+        = [self.peerConnectionFactory mediaStreamWithStreamId:mediaStreamId];
+        
+        [self
+         getUserMedia:constraints
+         successCallback:^ (RTCMediaStream *mediaStream) {
+             NSString *mediaStreamId = mediaStream.streamId;
+             NSMutableArray *tracks = [NSMutableArray array];
+             
+             for (NSString *propertyName in @[ @"audioTracks", @"videoTracks" ]) {
+                 SEL sel = NSSelectorFromString(propertyName);
+                 for (RTCMediaStreamTrack *track in [mediaStream performSelector:sel]) {
+                     NSString *trackId = track.trackId;
+                     
+                     self.localTracks[trackId] = track;
+                     [tracks addObject:@{
+                                         @"enabled": @(track.isEnabled),
+                                         @"id": trackId,
+                                         @"kind": track.kind,
+                                         @"label": trackId,
+                                         @"readyState": @"live",
+                                         @"remote": @(NO)
+                                         }];
+                 }
+             }
+             self.localStreams[mediaStreamId] = mediaStream;
+             resolve(@[ mediaStreamId, tracks ]);
+         }
+         errorCallback:^ (NSString *errorType, NSString *errorMessage) {
+             reject(errorType, errorMessage, nil);
+         }
+         mediaStream:mediaStream];
+    });
 }
 
 /**
